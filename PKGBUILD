@@ -1,0 +1,52 @@
+# Maintainer: Colin Woodbury <colingw@gmail.com>
+
+pkgname=haskell-aur-git
+_hkgname=aur
+pkgver=2.0.3
+pkgrel=1
+pkgdesc="Access package information from Arch Linux's AUR via its RPC interface."
+url="https://github.com/aurapm/haskell-aur"
+arch=('i686' 'x86_64')
+license=('GPL-3')
+depends=('ghc'
+  'haskell-aeson<1'
+  'haskell-aeson-pretty<1'
+  'haskell-filepath'
+  'haskell-lens<5'
+  'haskell-mtl'
+  'haskell-text'
+  'haskell-vector<0.11'
+  'haskell-wreq>=0.3')
+makedepends=('git')
+source=("${pkgname}::git+https://github.com/aurapm/haskell-aur.git")
+md5sums=('SKIP')
+options=('strip' 'staticlibs')
+provides=('haskell-aur')
+install=${pkgname}.install
+
+build() {
+  cd "${srcdir}/${pkgname}"
+
+  # Clones the whole repo, but builds a specific version corresponding
+  # to a tag.
+  git checkout tags/v${pkgver}
+
+  runhaskell Setup configure -O ${PKGBUILD_HASKELL_ENABLE_PROFILING:+-p } --enable-split-objs --enable-shared \
+    --prefix=/usr --docdir=/usr/share/doc/${pkgname} --libsubdir=\$compiler/site-local/\$pkgid
+  runhaskell Setup build
+  runhaskell Setup haddock
+  runhaskell Setup register   --gen-script
+  runhaskell Setup unregister --gen-script
+  sed -i -r -e "s|ghc-pkg.*unregister[^ ]* |&'--force' |" unregister.sh
+}
+
+package() {
+  cd "${srcdir}/${pkgname}"
+  install -D -m744 register.sh   ${pkgdir}/usr/share/haskell/${pkgname}/register.sh
+  install    -m744 unregister.sh ${pkgdir}/usr/share/haskell/${pkgname}/unregister.sh
+  install -d -m755 ${pkgdir}/usr/share/doc/ghc/html/libraries
+  ln -s /usr/share/doc/${pkgname}/html ${pkgdir}/usr/share/doc/ghc/html/libraries/${_hkgname}
+  runhaskell Setup copy --destdir=${pkgdir}
+  install -D -m644 LICENSE ${pkgdir}/usr/share/licenses/${pkgname}/LICENSE
+  rm -f ${pkgdir}/usr/share/doc/${pkgname}/LICENSE
+}
